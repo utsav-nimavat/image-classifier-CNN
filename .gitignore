@@ -1,1 +1,4 @@
 .DS_Store
+checkpoint.pt
+best.pt
+__pycache__/
