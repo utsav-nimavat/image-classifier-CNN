@@ -10,8 +10,14 @@ dependencies:
   - kagglehub
   - pip
   - pip:
-      # torch resolves to the CUDA build on Windows/Linux and the MPS build on
-      # macOS automatically -- same version string works on both machines.
+      # Default PyPI torch wheels are CPU-only on Windows, so pull torch and
+      # torchvision from PyTorch's CUDA 13.2 index instead. Needs an NVIDIA
+      # driver new enough for CUDA 13.x; check yours with `nvidia-smi`.
+      # The extra-index-url is what lets the non-torch pins below still
+      # resolve from PyPI. On macOS there is no CUDA build: delete both
+      # url lines to get the default MPS-capable wheels from PyPI.
+      - --index-url https://download.pytorch.org/whl/cu132
+      - --extra-index-url https://pypi.org/simple
       - torch==2.13.0
       - torchvision==0.28.0
       - opencv-python==5.0.0.93
