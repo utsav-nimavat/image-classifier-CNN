@@ -1,13 +1,19 @@
+# Recreate with:  conda env create -f environment.yml
+#                 conda activate image_cnn
+#
+# Versions below are the ones this project was actually trained with
+# (Food-101, DeepCNN, CUDA 13.2 on Windows).
 name: image_cnn
 channels:
   - conda-forge
   - defaults
 dependencies:
   - python=3.12
-  - numpy
-  - matplotlib
-  - ipykernel
-  - kagglehub
+  - numpy=2.5.*
+  - pillow=12.3.*          # train.py opens and resizes every image with PIL
+  - requests=2.34.*        # streams the Food-101 tarball from ETH Zurich
+  - matplotlib=3.11.*      # notebook plots only; train.py does not need it
+  - ipykernel              # to run test.ipynb
   - pip
   - pip:
       # Default PyPI torch wheels are CPU-only on Windows, so pull torch and
@@ -20,5 +26,3 @@ dependencies:
       - --extra-index-url https://pypi.org/simple
       - torch==2.13.0
       - torchvision==0.28.0
-      - opencv-python==5.0.0.93
-      - ipywidgets==8.1.9
