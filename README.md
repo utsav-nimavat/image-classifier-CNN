@@ -64,16 +64,37 @@ conda env create -f environment.yml
 conda activate image_cnn
 ```
 
-2. **Train from scratch OR download pretrained model**
+2. **Download pretrained model (recommended) or train from scratch**  
 
-From scratch:
+
+Download pretrained model (make sure you're **inside** the repo):
+```python
+gh release download v1.0 --pattern deepcnn_food101.pt
+```
+
+OR, to train from scratch:
 ```python
 python train.py --num-workers 8 --out-dir ~/Documents/ml-runs/food101
 ```
-This will take an estimated ~2.5 hours to run on an RTX GPU (mine was a 3060ti). If it's your first time training the model, it will need to download the dataset (5gb), create a scaled version of the dataset, and then begin training.
+This will take an estimated ~2.5 hours to run on an RTX GPU (mine was a 3060ti). If it's your first time training the model, it will need to download the dataset (5gb), create a scaled version of the dataset, and then begin training. **Don't pick this approach unless you really want obtain the model weights from scratch!**
 
-For the pretrained model, download it from the releases tab.
+
 
 3. **Testing the model**
 
-TBA
+Run `predict.py` with the filepath(s) of the images you want to predict. You must give one image minimum.
+```python
+python predict.py <image_1>
+```
+This would yield a sample output like:
+```
+<image_1>
+  lasagna                   79.0%
+  grilled_salmon             1.0%
+  spaghetti_bolognese        0.7%
+```
+Additional params:
+- `-m <path to model>`: Set to scan your repo by default for `.pt` file
+- `-c <path to classes.json>`: Scans repo for `classes.json` by default.
+- `-t <amount of predictions>`: Set to 3 by default, change to list more or less
+- `-f (boolean flag)`: Sets program to "fast" mode, only performing one round of TTA instead of the three used. `False` by omission
