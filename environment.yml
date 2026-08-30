@@ -13,7 +13,7 @@ dependencies:
   - pillow=12.3.*          # train.py opens and resizes every image with PIL
   - requests=2.34.*        # streams the Food-101 tarball from ETH Zurich
   - matplotlib=3.11.*      # notebook plots only; train.py does not need it
-  - ipykernel              # to run test.ipynb
+  - ipykernel              # to run explore.ipynb
   - pip
   - pip:
       # Default PyPI torch wheels are CPU-only on Windows, so pull torch and
