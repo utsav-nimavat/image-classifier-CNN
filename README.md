@@ -40,7 +40,7 @@ Scored against a 60-epoch baseline using Adam optimizer (my go-to until I switch
     - My network was shallow enough that the vanishing gradient problem didn't exist, and my model ended up performing better on training and worse than testing
 - AdamW optimizer (-1.54)
   - AdamW was applying weaker weight decay despite setting it 500x higher because of how Adam internally applies decay. This meant less regularization, causing better memorization and worse performance.
-- skipping the 8% worst-fitting images in each batch (-0.8)
+- Skipping the 8% worst-fitting images in each batch (-0.8)
     - This was an attempt at filtering out noisy training labels, but it also threw out the "hard" images so my model never learned to predict them
 - Training over 120 epochs instead of 60 (-0.73)
     - Just gave the model more time to memorize the training set without learning anything new.
