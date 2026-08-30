@@ -1,7 +1,7 @@
 # Image Classification Project using a Convolutional Neural Network - Classifying Food
 
 ## Background 
-This is a personal project to explore pytorch and build off what I've learned in undergrad. I got faint exposure to basic neural networks in a couple of my classes, and decided to to see how far I could go using a field that always interested me - computer vision.
+This is a personal project to explore pytorch and build off what I've learned in undergrad. I got faint exposure to basic neural networks in a couple of my classes, and decided to see how far I could go using a field that always interested me - computer vision.
 
 I started by attempting to build a general image classifier with 1000 classes based off an ImageNet dataset, but refined the scope of my goal to improve prediction accuracy and fit my compute constraints, which led me to my current dataset.
 
@@ -11,10 +11,10 @@ I trained a convolutional neural network over the [Food-101 dataset](https://dat
 
 The next phase of this project is to build a website where users can upload their own images for classification - WIP
 
-## Model
+## Model architecture
 
 ### Summary 
-My CNN was trained over 60 epochs using random intialization and no pretrained weights, on the official 75,750 image test split. I was able to get 82% top-1 prediction accuracy on the test data alone, boosted to 84.65% after applying a technique called test-time augmentation (TTA) that averaged the predictions my model gave across several input resolutions / mirrored images. 
+My CNN was trained over 60 epochs using random initialization and no pretrained weights, on the official 75,750 image training split. I was able to get 82% top-1 prediction accuracy on the test data alone, boosted to 84.65% after applying a technique called test-time augmentation (TTA) that averaged the predictions my model gave across several input resolutions / mirrored images. 
 
 
 ### Training
@@ -37,14 +37,43 @@ These specific configurations were chosen after many hours of A/B testing.
 Scored against a 60-epoch baseline using Adam optimizer (my go-to until I switched to SGD at the very end), the following techniques harmed my top-1 prediction accuracy which originally sat at 80.98%.
 
 - Residual / skip connections (-1.63) 
-    - My network was shallow enough that the vanishing gradient problem didn't exist, and my model ended up performing better on training and worse than testing
+    - My network was shallow enough that the vanishing gradient problem didn't exist, and my model ended up performing better on training and worse on testing
 - AdamW optimizer (-1.54)
   - AdamW was applying weaker weight decay despite setting it 500x higher because of how Adam internally applies decay. This meant less regularization, causing better memorization and worse performance.
 - Skipping the 8% worst-fitting images in each batch (-0.8)
     - This was an attempt at filtering out noisy training labels, but it also threw out the "hard" images so my model never learned to predict them
 - Training over 120 epochs instead of 60 (-0.73)
     - Just gave the model more time to memorize the training set without learning anything new.
-  
-### Results
 
-82.0% top-1 prediction on the official test split. 84.7% with multi-scale + flip TTA.
+
+### What worked the best
+Every gain was measured on the official test split, one change at a time (aka many hours of sleep lost fine tuning my model):
+
+| | top-1 prediction accuracy |
+|---|---|
+| Adam, 60 epochs, 10% held out for validation | 80.98% |
+| → switched optimizer to SGD | 81.65% (+0.67) |
+| → dropped validation split, trained on the full official split instead | 82.02% (+0.37) |
+| → multi-scale + flip TTA at inference | **84.65%** (+2.63) |
+
+
+## Running the model
+1. **Create the conda enviroment:**
+```bash
+conda env create -f environment.yml
+conda activate image_cnn
+```
+
+2. **Train from scratch OR download pretrained model**
+
+From scratch:
+```python
+python train.py --num-workers 8 --out-dir ~/Documents/ml-runs/food101
+```
+This will take an estimated ~2.5 hours to run on an RTX GPU (mine was a 3060ti). If it's your first time training the model, it will need to download the dataset (5gb), create a scaled version of the dataset, and then begin training.
+
+For the pretrained model, download it from the releases tab.
+
+3. **Testing the model**
+
+TBA
