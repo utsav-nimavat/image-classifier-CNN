@@ -1,8 +1,5 @@
-import os, random, time, json, argparse, hashlib, tarfile, requests, shutil
+import os, random, time, json, argparse, hashlib, tarfile, requests, shutil, copy, torch, numpy as np
 from pathlib import Path
-import numpy as np
-import copy
-import torch
 from torch import nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, Subset
@@ -14,9 +11,9 @@ from PIL import Image
 class CompactImageFolder(Dataset):
     """ImageFolder that pickles in ~6 MB instead of ~200 MB.
 
-    Paths are root/class/NNN.jpg, so only the filename and label need storing.
+    Paths are root/images/class/[file number].jpg, so only the filename and label need storing.
     Keeping them as numpy buffers means Windows worker spawn copies raw bytes
-    instead of millions of Python str/tuple objects.
+    instead of millions of Python str/tuple objects (annoying!)
     """
     def __init__(self, root, transform=None, cache_dir=None):
         """root: path to dataset root, which contains one subdir per class
@@ -29,16 +26,14 @@ class CompactImageFolder(Dataset):
         # build a dict mapping class name to index
         self.class_to_idx = {c: i for i, c in enumerate(self.classes)}
 
-        # Walking ~540k files costs real seconds on every launch. Cache the
-        # result, keyed by the dataset root, so repeat runs start instantly.
+        # cache the result, keyed by the dataset root, so repeat runs start instantly
         cache = None
         if cache_dir:
             os.makedirs(cache_dir, exist_ok=True)
             key = hashlib.sha1(os.path.abspath(root).encode()).hexdigest()[:16]
             cache = os.path.join(cache_dir, f"filelist-{key}.npz")
 
-        # The cache is only valid if the class list still matches exactly --
-        # otherwise the seeded split would silently point at different images.
+        # The cache is only valid if the class list still matches exactly, otherwise seeded split would silently point at different images
         if cache and os.path.exists(cache):
             z = np.load(cache, allow_pickle=False)
             if list(z["classes"].astype(str)) == self.classes:
@@ -109,25 +104,14 @@ class DeepCNN(Module):
     
     def forward(self, x):
         x = self.stem(x)
-        x = x + self.conv1b(self.conv1a(x))     # 48ch in and out
-        x = self.pool(x)
-
-        x = self.conv2a(x)                      # 48 -> 96, shape changes, no skip
-        x = self.pool(x + self.conv2b(x))
-
-        x = self.conv3a(x)                      # 96 -> 192
-        x = self.pool(x + self.conv3b(x))
-
-        x = self.conv4a(x)                      # 192 -> 384
-        x = x + self.conv4b(x)
-        x = self.pool(x + self.conv4c(x))
-
-        x = self.conv5a(x)                      # 384 -> 768
-        x = x + self.conv5b(x)
-        x = self.pool(x + self.conv5c(x))
-
+        x = self.pool(self.conv1b(self.conv1a(x)))
+        x = self.pool(self.conv2b(self.conv2a(x)))
+        x = self.pool(self.conv3b(self.conv3a(x)))
+        x = self.pool(self.conv4c(self.conv4b(self.conv4a(x))))
+        x = self.pool(self.conv5c(self.conv5b(self.conv5a(x))))
         x = self.flat(self.gap(x))
         return self.fc(self.drop(x))
+
 
 
 
@@ -140,10 +124,9 @@ def parse_args():
                         "the safe default on Windows where spawn costs ~400 MB/worker.")
     p.add_argument("--num-classes", type=int, default=None,
                    help="Keep only N classes. Default None keeps all 1000.")
-    p.add_argument("--out-dir", default=r"C:\ml-runs\food101",
-                   help="Checkpoint destination. Keep this OFF OneDrive: a synced "
-                        "folder re-uploads ~40 MB every epoch and competes with "
-                        "data loading for disk I/O.")
+    p.add_argument("--out-dir", default=str(Path.home() / "Documents" / "ml-runs" / "food101"),
+                   help="Checkpoint destination. Built from Path.home() so it works "
+                        "on Windows and macOS alike")
     p.add_argument("--fresh", action="store_true",
                    help="Ignore any existing checkpoint and start from epoch 0.")
     return p.parse_args()
@@ -270,6 +253,26 @@ def load_official_split(dataset, images_path, val_fraction=0.1, seed=42):
     print(f"train {len(train)} | val {len(val)} | test {len(test)}")
     return train, val, test
 
+def build_transforms(mean, std):
+    """Train and eval transforms. Module-level so the notebook can import
+    them"""
+    # The training transform includes data augmentation, while the validation transform does not.
+    # randomresizecrop is used to randomly crop the image to 224x224 pixels, 
+    # #randomhorizontalflip is used to randomly flip the image horizontally. 
+    # RandAugment is used to apply random augmentations to the image
+    # randomerasing is used to randomly erase a portion of the image.
+    train_tfm = transforms.Compose([transforms.RandomResizedCrop(224, scale=(0.5, 1.0)),
+                                    transforms.RandomHorizontalFlip(),
+                                    transforms.RandAugment(num_ops=2, magnitude=9),
+                                    transforms.ToTensor(),
+                                    transforms.Normalize(mean, std),
+                                    transforms.RandomErasing(p=0.25)])
+    eval_tfm  = transforms.Compose([transforms.Resize(256),
+                                    transforms.CenterCrop(224),
+                                    transforms.ToTensor(),
+                                    transforms.Normalize(mean, std)])
+    return train_tfm, eval_tfm
+
 def main():
     args = parse_args()
     # select backend
@@ -327,30 +330,15 @@ def main():
                 f"and old checkpoints would be invalid. "
                 f"Delete classes.json to re-baseline.")
 
-    tr_idx, va_idx, te_idx = load_official_split(dataset, path)
+    tr_idx, va_idx, te_idx = load_official_split(dataset, path, val_fraction = 0.0)
 
     # transform and load data
     # per-channel stats of all 101,100 training images; computed in jupyter notebook with
     MEAN = [0.5576, 0.4423, 0.327]
     STD  = [0.2591, 0.263, 0.2656]
 
-    # apply transforms to the training and validation datasets. The training transform includes data augmentation, while the validation transform does not.
-    # randomresizecrop is used to randomly crop the image to 224x224 pixels, 
-    # #randomhorizontalflip is used to randomly flip the image horizontally. 
-    # RandAugment is used to apply random augmentations to the image
-    # randomerasing is used to randomly erase a portion of the image.
-    train_tfm = transforms.Compose([transforms.RandomResizedCrop(224, scale=(0.5, 1.0)),
-                                    transforms.RandomHorizontalFlip(),
-                                    transforms.RandAugment(num_ops=2, magnitude=9),
-                                    transforms.ToTensor(),
-                                    transforms.Normalize(MEAN, STD),
-                                    transforms.RandomErasing(p=0.25)])
-    eval_tfm  = transforms.Compose([transforms.Resize(256),
-                                    transforms.CenterCrop(224),
-                                    transforms.ToTensor(),
-                                    transforms.Normalize(MEAN, STD)])
 
-
+    train_tfm, eval_tfm = build_transforms(MEAN, STD)
     dataset.transform = eval_tfm
     train_dataset = copy.copy(dataset)          # same files, augmented transform
     train_dataset.transform = train_tfm
@@ -358,7 +346,7 @@ def main():
     pin = (device.type == 'cuda')   # pinned host memory only helps host->GPU copies
     nw  = args.num_workers
     train_loader = DataLoader(Subset(train_dataset, tr_idx), batch_size=args.batch_size,
-                              shuffle=True,  num_workers=nw, pin_memory=pin)
+                              shuffle=True,  num_workers=nw, pin_memory=pin, persistent_workers=(nw > 0))
     val_loader   = DataLoader(Subset(dataset, va_idx), batch_size=256,
                               shuffle=False, num_workers=nw, pin_memory=pin)
     test_loader  = DataLoader(Subset(dataset, te_idx), batch_size=256,
@@ -374,23 +362,26 @@ def main():
     loss_function = nn.CrossEntropyLoss(label_smoothing=LABEL_SMOOTHING)
 
 
+    # A/B testing shows SGD Optimizer yields best results (although Adam is close behind)
+    #optimizer = optim.Adam(cnn.parameters(), lr=0.001, weight_decay=1e-4)
+    optimizer = optim.SGD(cnn.parameters(), lr=0.1, momentum=0.9,
+                          weight_decay=5e-4, nesterov=True)
+    #optimizer = optim.AdamW(cnn.parameters(), lr=0.001, weight_decay=0.05)
 
-    #optimizer = optim.SGD(cnn.parameters(), lr=0.01, momentum=0.9)
-    optimizer = optim.Adam(cnn.parameters(), lr=0.001, weight_decay=1e-4)
     use_amp = (device.type == 'cuda')  # use automatic mixed precision only on CUDA devices
     WARMUP = 3
     warmup = optim.lr_scheduler.LinearLR(optimizer, start_factor=0.1, total_iters=WARMUP)
     cosine = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS - WARMUP)
     scheduler = optim.lr_scheduler.SequentialLR(optimizer, [warmup, cosine], milestones=[WARMUP])
 
-    # Checkpoints must NOT live in the OneDrive-synced repo folder: best.pt and
-    # checkpoint.pt are written every epoch (~40 MB), and OneDrive re-uploads
+    # don't point checkpoints towards a folder in OneDrive (if using windows)
+    # checkpoint.pt is written every epoch (~40 MB), and OneDrive re-uploads
     # the whole file each time, stealing I/O from the data loader.
     OUT = args.out_dir
     os.makedirs(OUT, exist_ok=True)
     CKPT  = os.path.join(OUT, "checkpoint.pt")
     BEST  = os.path.join(OUT, "best.pt")
-    FINAL = os.path.join(OUT, "deepcnn_food101_v1.pt")
+    FINAL = os.path.join(OUT, "deepcnn_food101.pt")
     print("checkpoints ->", OUT)
 
     start_epoch = 0
@@ -402,6 +393,18 @@ def main():
         scheduler.load_state_dict(ckpt["scheduler"])
         start_epoch = ckpt["epoch"] + 1
         best_acc = ckpt.get("best_acc", 0.0)
+
+        # finished runs can't be extended in place, we add a guard to tell the user so
+        if start_epoch >= EPOCHS:
+            print(f"\n{CKPT}")
+            print(f"  already holds a completed {EPOCHS}-epoch run "
+                  f"(lr annealed to {scheduler.get_last_lr()[0]:g}).")
+            print("\n  To train again, pick one:")
+            print("    --fresh             overwrite this run in place")
+            print("    --out-dir <PATH>    keep it, start a separate run")
+            print("\n  To evaluate what is already here:")
+            print(f"    python tta.py --ckpt {FINAL}")
+            raise SystemExit(0)
         print(f"resuming from epoch {start_epoch + 1}")
 
     def save_ckpt(ep):
@@ -462,24 +465,26 @@ def main():
                 f"| train top-1 {tr_acc:.2f}% "
                 f"| epoch {epoch_min:.1f} min | run ETA {epoch_min*(EPOCHS-epoch-1)/60:.1f} h")
 
-            cnn.eval()
-            val_loss, correct, total = 0.0, 0, 0
-            with torch.no_grad(), torch.autocast(device.type, dtype=torch.bfloat16, enabled=use_amp):
-                for inputs, labels in val_loader:
-                    inputs, labels = inputs.to(device, non_blocking=True), labels.to(device, non_blocking=True)
-                    if chlast:
-                        inputs = inputs.to(memory_format=torch.channels_last)
-                    outputs = cnn(inputs)
-                    val_loss += loss_function(outputs, labels).item()
-                    correct += (outputs.argmax(1) == labels).sum().item()
-                    total += labels.size(0)
-            print(f"Val loss {val_loss/len(val_loader):.4f} | Val acc {100*correct/total:.2f}%")
+            # this block only runs if we have a validation split
+            if len(val_loader) > 0:
+                cnn.eval()
+                val_loss, correct, total = 0.0, 0, 0
+                with torch.no_grad(), torch.autocast(device.type, dtype=torch.bfloat16, enabled=use_amp):
+                    for inputs, labels in val_loader:
+                        inputs, labels = inputs.to(device, non_blocking=True), labels.to(device, non_blocking=True)
+                        if chlast:
+                            inputs = inputs.to(memory_format=torch.channels_last)
+                        outputs = cnn(inputs)
+                        val_loss += loss_function(outputs, labels).item()
+                        correct += (outputs.argmax(1) == labels).sum().item()
+                        total += labels.size(0)
+                print(f"Val loss {val_loss/len(val_loader):.4f} | Val acc {100*correct/total:.2f}%")
 
-            val_acc = 100 * correct / total
-            if val_acc > best_acc:
-                best_acc = val_acc
-                torch.save(cnn.state_dict(), BEST)
-                print(f"  new best: {best_acc:.2f}% -> saved")
+                val_acc = 100 * correct / total
+                if val_acc > best_acc:
+                    best_acc = val_acc
+                    torch.save(cnn.state_dict(), BEST)
+                    print(f"  new best: {best_acc:.2f}% -> saved")
 
             # step the scheduler after each epoch, not after each batch, so the warmup and cosine annealing are per-epoch
             scheduler.step()
@@ -512,6 +517,21 @@ def main():
             correct += (outputs.argmax(1) == labels).sum().item()
             total += labels.size(0)
     print(f"TEST loss {test_loss/len(test_loader):.4f} | TEST acc {100*correct/total:.2f}%")
+
+    # A completed run deletes its checkpoint, so FINAL without CKPT means done.
+    if os.path.exists(FINAL) and not os.path.exists(CKPT) and not args.fresh:
+        print(f"\n{FINAL}\n  already holds a completed run.")
+        print("\n  To train again, pick one:")
+        print("    --fresh             overwrite this run in place")
+        print("    --out-dir <PATH>    keep it, start a separate run")
+        print("\n  To evaluate what is already here:")
+        print(f"    python tta.py --ckpt {FINAL}")
+        raise SystemExit(0)
+
+    # run is complete, so we deleted checkpoint.pt. frees up 100mb+ of storage
+    if os.path.exists(CKPT):
+        os.remove(CKPT)
+        print(f"removed {os.path.basename(CKPT)} (run complete; weights are in {os.path.basename(FINAL)})")
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,19 @@
-"""Flip-TTA evaluation of an existing checkpoint. Read-only, touches no training code"""
+"""
+Flip test-time augmentation (TTA) for a trained DeepCNN checkpoint.
+
+
+Averages predictions across several input resolutions as well as mirroring.
+Different scales get different images wrong, so their errors partly cancel.
+This means three scales beat any two.
+
+This boosts accuracy by around 0.8-1 points (from my own experience) on using two views of one model and by 2-3 points on multiple. 
+No retraining is needed, this program is ran after train.py and costs 6 forward passes/
+
+The six predictions from the pictures shown to the model are averaged as probabilities 
+(softmax converts them from unbounded logits to 0-1 scale)
+
+This program is read-only. It imports from train.py but runs no training.
+"""
 import argparse
 import numpy as np
 import torch
@@ -7,9 +22,10 @@ from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 
 # import cnn architecture and helper class from train.py
+# don't copy over class code since otherwise any edits you make it train you have to manually rewrite here
 from train import DeepCNN, CompactImageFolder
 
-# mean & std values for food-101 dataset calculated in train.py
+# mean & std values for food-101 dataset calculated in explore.ipynb
 # takes a long time to compute on demand, so hardcoded here instead
 MEAN, STD = [0.5576, 0.4423, 0.327], [0.2591, 0.263, 0.2656]
 
@@ -18,8 +34,14 @@ def parse_args():
     p = argparse.ArgumentParser(description="Flip-TTA evaluation of a DeepCNN checkpoint")
     p.add_argument("--ckpt", required=True,
                    help="Checkpoint to evaluate.")
-    p.add_argument("--data", default=str(Path.home() / "Documents" / "food-101-256" / "images"),
-                   help="Pre-resized image root. Must match what train.py evaluated on.")
+    p.add_argument("--data", default=str(Path.home() / "Documents" / "food-101" / "images"),
+                   help="Image root. Use the ORIGINAL food-101 (short side up to 512), "
+                        "NOT food-101-256 -- the larger scales need real resolution to "
+                        "crop from, or they just upsample a 256px image.")
+    p.add_argument("--scales", default="256/224,288/256,320/288",
+                   help="Comma-separated resize/crop pairs to average over. Each is "
+                        "evaluated with its mirror too, so the default is 6 passes.")
+
     p.add_argument("--cache-dir", default=None,
                    help="Where to keep the cached file list. Optional.")
     p.add_argument("--num-workers", type=int, default=0,
@@ -57,14 +79,13 @@ def main():
         torch.backends.cudnn.benchmark = True
     print("device:", device)
 
-    eval_tfm = transforms.Compose([transforms.Resize(256),
-                                   transforms.CenterCrop(224),
-                                   transforms.ToTensor(),
-                                   transforms.Normalize(MEAN, STD)])
-    ds = CompactImageFolder(args.data, eval_tfm, cache_dir=args.cache_dir)
+    # Built once: the transform changes per scale below, but the file list and
+    # the test indices don't depend on it.
+    ds = CompactImageFolder(args.data, None, cache_dir=args.cache_dir)
     te_idx = load_test_split(ds, args.data)
-
     print(f"test images: {len(te_idx):,}")
+
+    scales = [tuple(int(v) for v in s.split("/")) for s in args.scales.split(",")]
 
     model = DeepCNN(len(ds.classes)).to(device)
     if chlast:
@@ -72,27 +93,34 @@ def main():
     model.load_state_dict(torch.load(args.ckpt, map_location=device, weights_only=True))
     model.eval()
 
-    loader = DataLoader(Subset(ds, te_idx), batch_size=256, shuffle=False,
-                        num_workers=args.num_workers,
-                        pin_memory=(device.type == "cuda"))
-    plain = flip = both = total = 0
-    with torch.no_grad(), torch.autocast(device.type, dtype=torch.bfloat16, enabled=use_amp):
-        for x, y in loader:
-            x = x.to(device, non_blocking=True)
-            if chlast:
-                x = x.to(memory_format=torch.channels_last)
-            y = y.to(device, non_blocking=True)
-            l1 = model(x).float()                       # original view
-            l2 = model(torch.flip(x, dims=[3])).float() # horizontally mirrored view
-            avg = (l1.softmax(1) + l2.softmax(1)) / 2   # average PROBABILITIES, not logits
-            plain += (l1.argmax(1)   == y).sum().item()
-            flip  += (l2.argmax(1)   == y).sum().item()
-            both  += (avg.argmax(1)  == y).sum().item()
-            total += y.size(0)
-    print(f"  plain (no TTA)     : {100*plain/total:.2f}%")
-    print(f"  mirrored view only : {100*flip/total:.2f}%")
-    print(f"  flip-TTA (averaged): {100*both/total:.2f}%")
-    print(f"  gain from TTA      : {100*(both-plain)/total:+.2f} points")
+    summed, labels = None, None
+    for resize, crop in scales:
+        ds.transform = transforms.Compose([transforms.Resize(resize),
+                                        transforms.CenterCrop(crop),
+                                        transforms.ToTensor(),
+                                        transforms.Normalize(MEAN, STD)])
+        loader = DataLoader(Subset(ds, te_idx), batch_size=128, shuffle=False,
+                            num_workers=args.num_workers,
+                            pin_memory=(device.type == "cuda"))
+
+        probs, ys = [], []
+        with torch.no_grad(), torch.autocast(device.type, dtype=torch.bfloat16, enabled=use_amp):
+            for x, y in loader:
+                x = x.to(device, non_blocking=True)
+                if chlast:
+                    x = x.to(memory_format=torch.channels_last)
+                p1 = model(x).float().softmax(1)                        # original view
+                p2 = model(torch.flip(x, dims=[3])).float().softmax(1)  # mirrored view
+                probs.append(((p1 + p2) / 2).cpu())                     # average PROBABILITIES
+                ys.append(y)
+
+        probs, labels = torch.cat(probs), torch.cat(ys)
+        acc = 100 * (probs.argmax(1) == labels).float().mean().item()
+        print(f"  {resize}/{crop:<4} + flip : {acc:.2f}%")
+        summed = probs if summed is None else summed + probs
+
+    combined = 100 * ((summed / len(scales)).argmax(1) == labels).float().mean().item()
+    print(f"\n  all {len(scales)} scales + flip : {combined:.2f}%")
 
 
 if __name__ == "__main__":
