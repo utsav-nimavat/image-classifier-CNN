@@ -13,4 +13,18 @@ My CNN was trained over 60 epochs using random intialization and no pretrained w
 
 The next phase of this project is to build a website where users can upload their own images for classification - WIP
 
+## Specific Model Details
+| | |
+|---|---|
+| Architecture | 13 conv layers + linear head, 17.34 M parameters |
+| Block | Conv3×3 (no bias) → BatchNorm → ReLU |
+| Stages | stem 3→48 (stride 2), then 48, 96, 192, 384, 768 — max-pool between |
+| Head | global average pool → dropout 0.2 → Linear(768, 101) |
+| Optimizer | SGD, lr 0.1, momentum 0.9, Nesterov, weight decay 5e-4 |
+| Schedule | 60 epochs, 3-epoch linear warmup → cosine annealing |
+| Loss | cross-entropy, label smoothing 0.1 |
+| Batch / precision | 128, bfloat16 autocast |
+| Augmentation | RandomResizedCrop(224, 0.5–1.0), h-flip, RandAugment(2, 9), RandomErasing(0.25) |
+| Data | 75,750 official training images; no pretrained weights |
+| Top-1 (official test split) | 82.02%, boosted to 84.65% with multi-scale + flip TTA |
 
