@@ -1,0 +1,8 @@
+# Deployment deps for app.py
+# for training, use environment.yml instead
+onnxruntime==1.29.0
+numpy==2.5.1
+pillow==12.3.*
+fastapi==0.141.*
+uvicorn[standard]==0.52.*
+python-multipart==0.0.*

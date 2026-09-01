@@ -9,10 +9,10 @@ channels:
   - defaults
 dependencies:
   - python=3.12
-  - numpy=2.5.*
-  - pillow=12.3.*          # train.py opens and resizes every image with PIL
-  - requests=2.34.*        # streams the Food-101 tarball from ETH Zurich
-  - matplotlib=3.11.*      # notebook plots only; train.py does not need it
+  - numpy=2.5.1
+  - pillow=12.3.0          # train.py opens and resizes every image with PIL
+  - requests=2.34.2        # streams the Food-101 tarball from ETH Zurich
+  - matplotlib=3.11.1      # notebook plots only; train.py does not need it
   - ipykernel              # to run explore.ipynb
   - pip
   - pip:
@@ -26,3 +26,5 @@ dependencies:
       - --extra-index-url https://pypi.org/simple
       - torch==2.13.0
       - torchvision==0.28.0
+      - onnxruntime==1.29.0
+      - onnx==1.22.0
