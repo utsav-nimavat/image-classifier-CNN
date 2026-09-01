@@ -3,7 +3,7 @@
 Run it with:  uvicorn app:app --reload
 Then open:    http://127.0.0.1:8000
 """
-import time
+import time, os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -43,8 +43,12 @@ async def lifespan(app: FastAPI):
     # nothing to clean up; python frees the model on exit
 
 
+IS_DEPLOYED = bool(os.getenv("VERCEL"))     # Vercel sets VERCEL=1
+
 app = FastAPI(title="Food-101 Classifier", lifespan=lifespan,
-              docs_url=None, redoc_url=None, openapi_url=None)
+              docs_url=None if IS_DEPLOYED else "/docs",
+              redoc_url=None if IS_DEPLOYED else "/redoc",
+              openapi_url=None if IS_DEPLOYED else "/openapi.json")
 
 
 @app.exception_handler(RequestValidationError)
