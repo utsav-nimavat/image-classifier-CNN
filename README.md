@@ -1,5 +1,5 @@
 # Image Classification Project using a Convolutional Neural Network - Classifying Food
-### Model is live at [image-cnn.vercel.app](image-cnn.vercel.app)! Check it out.
+### Model is live at [image-cnn.vercel.app](https://image-cnn.vercel.app/)! Check it out.
 ## Background 
 This is a personal project to explore pytorch and build off what I've learned in undergrad. I got faint exposure to basic neural networks in a couple of my classes, and decided to see how far I could go using a field that always interested me - computer vision.
 
