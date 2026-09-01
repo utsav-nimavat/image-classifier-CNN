@@ -123,9 +123,9 @@ def parse_args():
                    help="DataLoader workers. 0 means no multiprocessing, which is "
                         "the safe default on Windows where spawn costs ~400 MB/worker.")
     p.add_argument("--num-classes", type=int, default=None,
-                   help="Keep only N classes. Default None keeps all 1000.")
-    p.add_argument("--out-dir", default=str(Path.home() / "Documents" / "ml-runs" / "food101"),
-                   help="Checkpoint destination. Built from Path.home() so it works "
+                   help="Keep only N classes. Default None keeps all 100.")
+    p.add_argument("--out-dir", default=str(Path.cwd()),
+                   help="Checkpoint destination. Built from Path.cwd() so it works "
                         "on Windows and macOS alike")
     p.add_argument("--fresh", action="store_true",
                    help="Ignore any existing checkpoint and start from epoch 0.")
