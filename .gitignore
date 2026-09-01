@@ -9,3 +9,7 @@ __pycache__/
 
 # manual backups; git handles versioning now
 *.pre-run*
+
+# vercel build output
+public/
+.vercel

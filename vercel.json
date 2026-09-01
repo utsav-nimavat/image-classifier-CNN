@@ -1,4 +1,4 @@
-gi{
+{
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "curl -sfL -o deepcnn_food101.onnx https://github.com/utsav-nimavat/image-classifier-CNN/releases/download/v1.1/deepcnn_food101.onnx && mkdir -p public && cp -R static/. public/",
   "outputDirectory": "public"

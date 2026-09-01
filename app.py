@@ -8,6 +8,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import UnidentifiedImageError
 from starlette.concurrency import run_in_threadpool
@@ -41,15 +43,19 @@ async def lifespan(app: FastAPI):
     # nothing to clean up; python frees the model on exit
 
 
-app = FastAPI(title="Food-101 Classifier", lifespan=lifespan)
+app = FastAPI(title="Food-101 Classifier", lifespan=lifespan,
+              docs_url=None, redoc_url=None, openapi_url=None)
 
+
+@app.exception_handler(RequestValidationError)
+async def tidy_validation_error(request: Request, exc: RequestValidationError):
+    """FastAPI's default 422 body echoes the submitted value back and spells out
+    the internal field layout. Replace with a less verbose error message."""
+    return JSONResponse(status_code=422, content={"detail": "Invalid request."})
 
 def get_classifier(request: Request) -> FoodClassifier:
     """dependency: hands the loaded model to whichever endpoint asks for it.
-
     fastapi calls this before the endpoint runs and passes the return value in.
-    swapping this function out is how a test injects a fake model without
-    loading 66mb of weights.
     """
     clf = getattr(request.app.state, "clf", None)
     if clf is None:
@@ -83,8 +89,7 @@ async def classify(image: UploadFile = File(...),
         raise HTTPException(400, "That file isn't an image we can read. Try a JPG or PNG.")
 
     # inference is blocking cpu work. in an `async def` endpoint, running it
-    # directly would freeze the event loop -- no other request, not even a css
-    # file, gets served until it finishes. run_in_threadpool hands it to a
+    # directly would freeze the event loop. run_in_threadpool hands it to a
     # worker thread so the server stays responsive.
     t0 = time.perf_counter()
     predictions = await run_in_threadpool(clf.classify, img, topk, fast)
@@ -120,11 +125,10 @@ async def health(request: Request):
 
 
 # mounting at "/" catches every path that didn't match a route above, so this
-# MUST come last. html=True makes "/" serve static/index.html.
-#
+# must come last. html=True makes "/" serve static/index.html.
 # guarded because StaticFiles raises at IMPORT time if the directory is missing.
 # locally static/ is right here and this serves the page. on vercel the CDN
 # serves the page and this function only ever sees /api/*, so the directory may
-# not be in the bundle -- without the guard the whole function would fail to boot.
+# not be in the bundle. without the guard the whole function would fail to boot.
 if STATIC_DIR.is_dir():
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
