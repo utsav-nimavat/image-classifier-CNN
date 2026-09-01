@@ -3,8 +3,9 @@ checkpoint.pt
 best.pt
 __pycache__/
 
-# model weights and run artifacts -- these belong in C:\ml-runs, not the repo
+# model weights and run artifacts
 *.pt
+*.onnx
 
 # manual backups; git handles versioning now
 *.pre-run*
