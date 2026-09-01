@@ -1,10 +1,809 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Title</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#658A6E">
+<title>Food-101 Classifier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Nunito+Sans:wght@400;600;700&display=swap">
+<style>
+  /* ---------------------------------------------------------------
+     going for earthy tones, green-dominant with some browns
+     sprinkled in
+     --------------------------------------------------------------- */
+  :root {
+    --ground:      #658A6E;   /* sage green background */
+    --surface:     #E9F0E1;   /* sage-tinted cream color for card background */
+    --surface-2:   #DAE5CF;   /* heavier green tint for inside card boxes  */
+    --ink:         #33291E;   /* warm dark brown  */
+    --ink-2:       #4B3E2E;
+    --muted:       #5B6B54;
+    --faint:       #6C7D64;
+    --line:        #C3D3B4;
+    --line-2:      #D0DDC3;
+
+    /* the greens */
+    --moss:        #658A6E;   /* first place color */
+    --moss-deep:   #47664F;   /* darker, for buttons & text that need contrast */
+    --moss-light:  #91BA8D;   /* second place */
+    --moss-pale:   #C3D18C;   /* third place */
+    --moss-wash:   #E3EDDC;
+    --butter:      #E7DFA8;   /* warm highlight, desaturated so it doesn't glare */
+
+    /* the browns */
+    --walnut:      #836A52;   /* for headers */
+    --walnut-deep: #6B5643;   /* card outline */
+    --tan:         #C9A77B;
+    --brown:       #A88C6C;
+
+    /* only for things going wrong */
+    --danger:      #A05434;
+    --danger-wash: #F6E5DA;
+
+    --shadow:      0 1px 2px rgba(45,34,24,.07), 0 10px 24px -14px rgba(45,34,24,.26);
+    --shadow-soft: 0 1px 3px rgba(45,34,24,.12), 0 14px 30px -20px rgba(45,34,24,.34);
+
+    /* rounding vals and fonts for a "cutesy" look */
+    --r-sm: 8px;
+    --r:    14px;
+    --r-lg: 22px;
+    --r-pill: 999px;
+
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
+
+    --display:"Fraunces", Georgia, serif;
+    --body:"Nunito Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono:"DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  *{box-sizing:border-box}
+  /* UA gives [hidden] display:none, but any author `display` outranks it */
+  [hidden]{display:none!important}
+
+  body{
+    margin:0;
+    /* layered background
+       1. a soft pool of light behind the content, so cards sit in a glow
+       2+3. two fine diagonal rules crossing at 90deg = cross-hatch
+       4. the flat sage underneath it all
+       kept very low contrast on purpose to give subtle texture feeling. */
+    background-color:var(--ground);
+    background-image:
+      radial-gradient(120% 80% at 50% 0%, rgba(240,247,232,.16) 0%, rgba(240,247,232,0) 62%),
+      url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27220%27%20height%3D%27220%27%3E%3Cfilter%20id%3D%27g%27%20x%3D%270%27%20y%3D%270%27%20width%3D%27100%%27%20height%3D%27100%%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%27.82%27%20numOctaves%3D%274%27%20stitchTiles%3D%27stitch%27%20result%3D%27n%27%2F%3E%3CfeColorMatrix%20in%3D%27n%27%20type%3D%27saturate%27%20values%3D%270%27%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D%27220%27%20height%3D%27220%27%20filter%3D%27url%28%23g%29%27%20opacity%3D%27.38%27%2F%3E%3C%2Fsvg%3E");
+    background-size:auto, 220px 220px;
+    background-blend-mode:normal, soft-light;
+    background-attachment:fixed, fixed;
+    color:var(--ink);
+    font-family:var(--body);
+    font-size:15.5px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  :where(button,input,summary):focus-visible{
+    outline:2.5px solid var(--moss);outline-offset:3px;border-radius:var(--r-sm)}
+
+
+  /* change this val to increase strength of background design*/
+  body::before{
+    --pattern-strength: .58;
+
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    opacity:var(--pattern-strength);
+    background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27240%27%20height%3D%27240%27%20viewBox%3D%270%200%20240%20240%27%3E%3Cdefs%3E%3CradialGradient%20id%3D%27hole%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%23000%27%2F%3E%3Cstop%20offset%3D%27.58%27%20stop-color%3D%27%23000%27%2F%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%23fff%27%2F%3E%3C%2FradialGradient%3E%3Cmask%20id%3D%27clear%27%3E%3Crect%20width%3D%27240%27%20height%3D%27240%27%20fill%3D%27%23fff%27%2F%3E%3Ccircle%20cx%3D%2760%27%20cy%3D%2760%27%20r%3D%2724%27%20fill%3D%27url%28%23hole%29%27%2F%3E%3Ccircle%20cx%3D%27180%27%20cy%3D%27120%27%20r%3D%2724%27%20fill%3D%27url%28%23hole%29%27%2F%3E%3Ccircle%20cx%3D%27120%27%20cy%3D%27180%27%20r%3D%2724%27%20fill%3D%27url%28%23hole%29%27%2F%3E%3Ccircle%20cx%3D%2730%27%20cy%3D%27150%27%20r%3D%2724%27%20fill%3D%27url%28%23hole%29%27%2F%3E%3Ccircle%20cx%3D%27210%27%20cy%3D%2730%27%20r%3D%2724%27%20fill%3D%27url%28%23hole%29%27%2F%3E%3C%2Fmask%3E%3C%2Fdefs%3E%3Cg%20mask%3D%27url%28%23clear%29%27%3E%3Cpath%20d%3D%27M-300%20-660L540%20180%20M-300%20-600L540%20240%20M-300%20-540L540%20300%20M-300%20-480L540%20360%20M-300%20-420L540%20420%20M-300%20-360L540%20480%20M-300%20-300L540%20540%20M-300%20-240L540%20600%20M-300%20-180L540%20660%20M-300%20-120L540%20720%20M-300%20-60L540%20780%20M-300%200L540%20840%20M-300%2060L540%20900%20M-300%20120L540%20960%20M-300%20180L540%201020%20M-300%20240L540%201080%20M-300%20300L540%201140%20M-300%20360L540%201200%20M-300%20420L540%201260%27%20fill%3D%27none%27%20stroke%3D%27%23F3F9EC%27%20stroke-opacity%3D%27.13%27%20stroke-width%3D%271%27%2F%3E%3Cpath%20d%3D%27M-300%20-60L540%20-900%20M-300%200L540%20-840%20M-300%2060L540%20-780%20M-300%20120L540%20-720%20M-300%20180L540%20-660%20M-300%20240L540%20-600%20M-300%20300L540%20-540%20M-300%20360L540%20-480%20M-300%20420L540%20-420%20M-300%20480L540%20-360%20M-300%20540L540%20-300%20M-300%20600L540%20-240%20M-300%20660L540%20-180%20M-300%20720L540%20-120%20M-300%20780L540%20-60%20M-300%20840L540%200%20M-300%20900L540%2060%20M-300%20960L540%20120%20M-300%201020L540%20180%27%20fill%3D%27none%27%20stroke%3D%27%23263424%27%20stroke-opacity%3D%27.12%27%20stroke-width%3D%271%27%2F%3E%3C%2Fg%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23EFF6E6%27%20stroke-opacity%3D%27.34%27%20stroke-width%3D%271.35%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cg%20transform%3D%27translate%2860%2060%29%20rotate%28-12%29%20scale%280.92%29%20translate%28-0.0%209.5%29%27%3E%3Cpath%20d%3D%27M0%200%200-19%20M0-5c-5%200-8-3-8-7%205%200%208%203%208%207z%20M0-11c5%200%208-3%208-7-5%200-8%203-8%207z%27%2F%3E%3C%2Fg%3E%3Cg%20transform%3D%27translate%28180%20120%29%20rotate%2816%29%20scale%280.88%29%20translate%28-0.0%2010.0%29%27%3E%3Cpath%20d%3D%27M0%200%200-20%20M0-6c-4-1-6-4-6-7%204%201%206%204%206%207z%20M0-12c4-1%206-4%206-7-4%201-6%204-6%207z%27%2F%3E%3C%2Fg%3E%3Cg%20transform%3D%27translate%28120%20180%29%20rotate%28-28%29%20scale%280.95%29%20translate%28-9.0%204.5%29%27%3E%3Cpath%20d%3D%27M0%200c4-7%2012-10%2018-9%201%207-6%2012-18%209z%20M2-1%2016-7%27%2F%3E%3C%2Fg%3E%3Cg%20transform%3D%27translate%2830%20150%29%20rotate%2810%29%20scale%280.9%29%20translate%28-0.5%2010.5%29%27%3E%3Cpath%20d%3D%27M0%200%200-8%20M-4.5-11.5a3.8%203.8%200%201%200%20.1%200z%20M5-11a3.6%203.6%200%201%200%20.1%200z%20M0-17.5a3.6%203.6%200%201%200%20.1%200z%27%2F%3E%3C%2Fg%3E%3Cg%20transform%3D%27translate%28210%2030%29%20rotate%28-40%29%20scale%280.92%29%20translate%28-8.0%200.5%29%27%3E%3Cpath%20d%3D%27M0%200c6-3%2013-1%2016%203-5%204-12%204-16-3z%20M2-1%2014%202%27%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+    background-size:240px 240px;
+  }
+  /* keep page content above the pattern layer */
+  .wrap{position:relative;z-index:1}
+
+  .wrap{max-width:1020px;margin:0 auto;padding:var(--s6) var(--s5) var(--s7)}
+
+  /* ---------- masthead ---------- */
+  .topbar{
+    display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s4);
+    background:var(--walnut);border-radius:var(--r-lg);
+    padding:var(--s3) var(--s5) var(--s3) var(--s3);box-shadow:var(--shadow);
+  }
+  .sprout{
+    width:44px;height:44px;flex:none;border-radius:var(--r-pill);
+    background:var(--butter);border:1.5px solid var(--butter);
+    display:grid;place-items:center;color:var(--moss-deep);
+  }
+  .wordmark{
+    font-family:var(--display);font-weight:700;font-size:25px;
+    letter-spacing:-.015em;line-height:1.1;margin:0;color:#F7FAF2;
+  }
+  .tagline{
+    font-family:var(--mono);font-size:11.5px;letter-spacing:.04em;
+    color:#F7FAF2;margin:3px 0 0;
+  }
+
+  /* ---------- layout ---------- */
+  .app{display:grid;grid-template-columns:1fr 1fr;gap:var(--s4);align-items:start}
+  .panel{
+    background:var(--surface);
+    border:2px solid var(--walnut-deep);
+    border-radius:var(--r-lg);
+    box-shadow:var(--shadow-soft);
+    overflow:hidden;
+  }
+  .panel-head{
+    display:flex;align-items:center;justify-content:space-between;gap:var(--s3);
+    padding:var(--s3) var(--s4);
+    background:var(--walnut);
+    border-bottom:0;
+  }
+  .panel-title{
+    font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.08em;
+    text-transform:uppercase;color:#F7FAF2;margin:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+
+  .capture-body,.readout-body{padding:var(--s4);display:grid;gap:var(--s3)}
+  .readout-body{gap:var(--s4)}
+
+  /* ---------- drop zone ---------- */
+  .dropzone{
+    display:grid;place-items:center;gap:var(--s3);
+    min-height:270px;padding:var(--s5);
+    border:2px dashed var(--line);
+    border-radius:var(--r);
+    background:var(--surface-2);
+    text-align:center;cursor:pointer;
+    transition:border-color 200ms ease,background 200ms ease,transform 200ms ease;
+  }
+  .dropzone:hover{border-color:var(--moss);background:var(--moss-wash);transform:translateY(-1px)}
+  .dropzone.is-over{
+    border-color:var(--moss);border-style:solid;
+    background:var(--moss-wash);transform:scale(1.01);
+  }
+  .dz-art{color:var(--brown);transition:color 200ms ease,transform 300ms ease}
+  .dropzone:hover .dz-art,.dropzone.is-over .dz-art{color:var(--moss);transform:rotate(-4deg)}
+  .dz-primary{font-family:var(--display);font-weight:600;font-size:19px;color:var(--ink)}
+  .dz-secondary{font-size:13.5px;color:var(--muted);margin-top:3px}
+  .dz-formats{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;
+    color:var(--faint);
+  }
+
+  .preview{position:relative;border-radius:var(--r);overflow:hidden;
+           background:var(--surface-2);cursor:pointer;border:1.5px solid var(--line)}
+  .preview img{display:block;width:100%;max-height:330px;object-fit:cover}
+  .preview-meta{position:absolute;left:var(--s2);bottom:var(--s2);display:flex;gap:var(--s1)}
+  .chip{
+    font-family:var(--mono);font-size:10.5px;padding:4px 9px;
+    border-radius:var(--r-pill);
+    background:rgba(51,41,30,.74);color:#F1EDE3;backdrop-filter:blur(6px);
+  }
+
+  /* ---------- buttons ---------- */
+  .actions{display:flex;gap:var(--s2)}
+  .actions>*{flex:1}
+  .btn{
+    appearance:none;font-family:var(--body);font-size:14.5px;font-weight:700;
+    padding:12px 18px;border-radius:var(--r-pill);
+    border:1.5px solid var(--line);background:var(--surface);color:var(--ink-2);
+    cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);
+    transition:background 160ms ease,border-color 160ms ease,transform 120ms ease,box-shadow 160ms ease;
+  }
+  .btn:hover{background:var(--surface-2);border-color:var(--tan);transform:translateY(-1px)}
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{
+    background:var(--moss-deep);border-color:var(--moss-deep);color:#EDF3E5;
+    box-shadow:0 2px 0 #354C3B;
+  }
+  .btn-primary:hover{
+    background:#3D5A45;border-color:#3D5A45;color:#F8FBF3;
+    box-shadow:0 3px 0 #354C3B;transform:translateY(-1px);
+  }
+  .btn-primary:active{box-shadow:0 1px 0 #354C3B;transform:translateY(1px)}
+  .btn-primary:disabled{
+    opacity:.45;cursor:not-allowed;transform:none;box-shadow:0 2px 0 #354C3B;
+  }
+  .btn-camera{display:none}
+  @media (hover:none) and (pointer:coarse){.btn-camera{display:inline-flex}}
+
+  .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+    overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+  /* ---------- status strip ---------- */
+  .status{
+    display:grid;grid-template-columns:repeat(3,1fr);
+    border:1.5px solid var(--line-2);border-radius:var(--r);
+    overflow:hidden;background:var(--surface-2);
+  }
+  .status div{padding:var(--s2) var(--s3);border-right:1.5px solid var(--line-2)}
+  .status div:last-child{border-right:0}
+  .status dt{
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--faint);margin:0;
+  }
+  .status dd{
+    font-family:var(--mono);font-size:13.5px;font-weight:500;
+    font-variant-numeric:tabular-nums;color:var(--ink-2);margin:2px 0 0;
+  }
+
+  /* ---------- results ---------- */
+  .results{display:grid;gap:var(--s2);min-height:172px}
+  .empty,.loading,.error{
+    display:grid;place-items:center;align-content:center;gap:var(--s2);
+    min-height:172px;text-align:center;color:var(--faint);
+    border:2px dashed var(--line-2);border-radius:var(--r);padding:var(--s4);
+  }
+  .error{color:var(--danger);border-color:var(--danger);background:var(--danger-wash)}
+  .empty p,.loading p,.error p{margin:0;font-size:13.5px}
+  .empty .hint{font-family:var(--mono);font-size:11px}
+  .spinner{
+    width:24px;height:24px;border:2.5px solid var(--line);
+    border-top-color:var(--moss);border-radius:50%;animation:spin 800ms linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .row{display:grid;grid-template-columns:22px 1fr auto;align-items:baseline;
+       gap:var(--s3);padding:var(--s2) 0}
+  .rank{
+    font-family:var(--mono);font-size:11px;color:var(--faint);
+    font-variant-numeric:tabular-nums;
+  }
+  .row-main{display:grid;gap:7px;min-width:0}
+  .label{
+    font-size:14px;font-weight:600;color:var(--ink-2);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .row-1 .label{font-family:var(--display);font-weight:600;font-size:17px;color:var(--ink)}
+  .track{height:9px;border-radius:var(--r-pill);background:var(--surface-2);
+         overflow:hidden;border:1px solid var(--line-2)}
+  /* display:block is load-bearing: .bar is a <span>, and an inline box
+     ignores width/height, so the bar would render at 0px wide */
+  .bar{
+    display:block;height:100%;width:0;border-radius:var(--r-pill);
+    background:var(--moss);
+    transition:width 700ms cubic-bezier(.22,.85,.3,1);
+  }
+  /* the ranking descends out of green and into browns:
+     sage -> light sage -> yellow-green -> tan -> brown */
+  .row-1 .bar{background:var(--moss)}
+  .row-2 .bar{background:var(--moss-light)}
+  .row-3 .bar{background:var(--moss-pale)}
+  .row-4 .bar{background:var(--tan)}
+  .row-5 .bar{background:#8A6E4C}
+
+  .pct{font-family:var(--mono);font-size:13px;font-weight:500;
+       font-variant-numeric:tabular-nums;color:var(--muted)}
+  .row-1 .pct{color:var(--moss-deep);font-size:16px;font-weight:500}
+
+  /* ---------- settings ---------- */
+  .settings{border:1.5px solid var(--line-2);border-radius:var(--r);background:var(--surface-2)}
+  .settings>summary{
+    display:flex;align-items:center;gap:var(--s2);padding:var(--s3);
+    cursor:pointer;font-family:var(--mono);font-size:11px;font-weight:500;
+    letter-spacing:.07em;text-transform:uppercase;color:var(--muted);list-style:none;
+  }
+  .settings>summary::-webkit-details-marker{display:none}
+  .settings>summary::before{
+    content:"";width:0;height:0;border-left:5px solid currentColor;
+    border-top:4px solid transparent;border-bottom:4px solid transparent;
+    transition:transform 200ms ease;
+  }
+  .settings[open]>summary::before{transform:rotate(90deg)}
+  .settings>summary:hover{color:var(--moss-deep)}
+  .settings-body{
+    padding:var(--s3);padding-top:var(--s1);display:grid;gap:var(--s4);
+    border-top:1.5px solid var(--line-2);margin-top:var(--s1);
+  }
+  .field{display:grid;gap:7px}
+  .field-head{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s2)}
+  .field-label{font-size:14px;font-weight:700;color:var(--ink-2)}
+  .field-hint{font-size:12.5px;color:var(--faint)}
+  .field-value{
+    font-family:var(--mono);font-size:14px;font-weight:500;
+    font-variant-numeric:tabular-nums;color:var(--moss-deep);
+  }
+
+  input[type=range]{appearance:none;width:100%;height:22px;background:transparent;
+                    cursor:pointer;margin:0}
+  input[type=range]::-webkit-slider-runnable-track{
+    height:6px;border-radius:var(--r-pill);background:var(--line)}
+  input[type=range]::-moz-range-track{
+    height:6px;border-radius:var(--r-pill);background:var(--line)}
+  input[type=range]::-webkit-slider-thumb{
+    appearance:none;width:18px;height:18px;margin-top:-6px;border-radius:50%;
+    background:var(--moss);border:3px solid var(--surface);
+    box-shadow:0 1px 4px rgba(60,48,30,.3)}
+  input[type=range]::-moz-range-thumb{
+    width:18px;height:18px;border-radius:50%;background:var(--moss);
+    border:3px solid var(--surface);box-shadow:0 1px 4px rgba(60,48,30,.3)}
+  .ticks{display:flex;justify-content:space-between;font-family:var(--mono);
+         font-size:10px;color:var(--faint);font-variant-numeric:tabular-nums;padding:0 3px}
+
+  .toggle{display:flex;align-items:center;justify-content:space-between;
+          gap:var(--s3);cursor:pointer}
+  .toggle-copy{display:grid;gap:2px}
+  .switch{
+    position:relative;flex:none;width:46px;height:26px;border-radius:var(--r-pill);
+    background:var(--line);border:1.5px solid var(--line);transition:background 200ms ease;
+  }
+  .switch::after{
+    content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;
+    border-radius:50%;background:var(--surface);
+    box-shadow:0 1px 3px rgba(60,48,30,.35);
+    transition:transform 220ms cubic-bezier(.3,.8,.3,1);
+  }
+  .toggle input{position:absolute;opacity:0;pointer-events:none}
+  .toggle input:checked+.switch{background:var(--moss);border-color:var(--moss)}
+  .toggle input:checked+.switch::after{transform:translateX(20px)}
+  .toggle input:focus-visible+.switch{outline:2.5px solid var(--moss);outline-offset:3px}
+
+
+  /* ---------- about dialog ---------- */
+  .topbar-spacer{margin-left:auto}
+  .help-btn{
+    appearance:none;flex:none;width:34px;height:34px;border-radius:50%;
+    border:1.5px solid rgba(247,250,242,.45);background:transparent;color:#F7FAF2;
+    font-family:var(--display);font-weight:600;font-size:17px;line-height:1;
+    cursor:pointer;display:grid;place-items:center;
+    transition:background 160ms ease,border-color 160ms ease,transform 120ms ease;
+  }
+  .help-btn:hover{background:rgba(247,250,242,.16);border-color:#F7FAF2;transform:scale(1.06)}
+  .help-btn:active{transform:scale(.96)}
+
+  dialog.about{
+    border:2px solid var(--walnut-deep);border-radius:var(--r-lg);
+    background:var(--surface);color:var(--ink);
+    padding:0;max-width:520px;width:calc(100% - 2rem);
+    box-shadow:var(--shadow-soft);
+  }
+  dialog.about::backdrop{background:rgba(30,40,28,.55);backdrop-filter:blur(2px)}
+  .about-head{
+    display:flex;align-items:center;justify-content:space-between;gap:var(--s3);
+    background:var(--walnut);padding:var(--s3) var(--s4);
+  }
+  .about-head h2{
+    font-family:var(--display);font-weight:600;font-size:17px;margin:0;color:#F7FAF2;
+  }
+  .about-close{
+    appearance:none;border:0;background:transparent;color:#F7FAF2;cursor:pointer;
+    font-size:22px;line-height:1;padding:2px 6px;border-radius:var(--r-sm);
+    transition:background 140ms ease;
+  }
+  .about-close:hover{background:rgba(247,250,242,.18)}
+  .about-body{padding:var(--s4);display:grid;gap:var(--s3)}
+  .about-body p{margin:0;font-size:14.5px;color:var(--ink-2);max-width:none}
+  .about-facts{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:var(--s2);
+    margin:var(--s1) 0;
+  }
+  .about-facts div{
+    background:var(--surface-2);border-radius:var(--r);padding:var(--s2) var(--s3);
+  }
+  .about-facts dt{
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--muted);margin:0;
+  }
+  .about-facts dd{
+    font-family:var(--mono);font-size:15px;font-weight:500;color:var(--ink);
+    margin:2px 0 0;font-variant-numeric:tabular-nums;
+  }
+  .about-links{
+    display:grid;grid-template-columns:1fr 1fr;
+    gap:var(--s2);margin-top:var(--s1);
+  }
+  @media (max-width:560px){.about-links{grid-template-columns:1fr}}
+  .about-links a,
+  .about-links button{
+    font-family:var(--body);cursor:pointer;
+    text-align:center;text-decoration:none;
+    font-size:13.5px;font-weight:700;padding:10px 14px;border-radius:var(--r-pill);
+    background:var(--moss-deep);color:#EDF3E5;border:1.5px solid var(--moss-deep);
+    transition:background 140ms ease,transform 120ms ease;
+  }
+  .about-links a:hover,
+  .about-links button:hover{background:#3D5A45;transform:translateY(-1px)}
+  .about-links a.secondary,
+  .about-links button.secondary{
+    background:transparent;color:var(--ink-2);border-color:var(--line);
+  }
+  .about-links a.secondary:hover,
+  .about-links button.secondary:hover{background:var(--surface-2);border-color:var(--tan)}
+
+  .class-list{
+    margin-top:var(--s2);padding:var(--s3);
+    background:var(--surface-2);border:1.5px solid var(--line-2);border-radius:var(--r);
+    max-height:300px;overflow-y:auto;
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));
+    gap:1px var(--s3);
+    font-size:13px;line-height:1.7;color:var(--ink-2);
+  }
+  .class-list .muted{grid-column:1 / -1;color:var(--muted);font-style:italic}
+  .about-cite{font-size:12px;color:var(--muted);line-height:1.5}
+
+  /* small text link living in a panel header band */
+  .panel-link{
+    appearance:none;border:0;background:transparent;cursor:pointer;flex:none;
+    font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.08em;
+    text-transform:uppercase;color:#F7FAF2;padding:1px 0;
+    border-bottom:1px dashed rgba(247,250,242,.55);
+    transition:border-color 150ms ease,opacity 150ms ease;
+  }
+  .panel-link:hover{border-bottom-color:#F7FAF2;opacity:.85}
+
+  @media (prefers-reduced-motion:reduce){
+    .help-btn:hover,.about-links a:hover{transform:none}
+  }
+
+  .footnote{margin:var(--s5) 0 0;text-align:center;font-size:13px;color:#F0F6E9}
+
+  @media (max-width:840px){
+    .wrap{padding:var(--s5) var(--s4) var(--s6)}
+    .app{grid-template-columns:1fr}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  }
+</style>
 </head>
 <body>
+<div class="wrap">
 
+  <header class="topbar">
+    <span class="sprout" aria-hidden="true">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M12 21v-8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M12 13c0-3.3 2.5-6 5.6-6 .3 3.4-2.2 6-5.6 6Z" fill="currentColor" opacity=".28"/>
+        <path d="M12 13c0-3.3 2.5-6 5.6-6 .3 3.4-2.2 6-5.6 6Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+        <path d="M12 16c-3 0-5.3-2.3-5.1-5.3C9.7 10.5 12 12.8 12 16Z" fill="currentColor" opacity=".18"/>
+        <path d="M12 16c-3 0-5.3-2.3-5.1-5.3C9.7 10.5 12 12.8 12 16Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+      </svg>
+    </span>
+    <div>
+      <h1 class="wordmark">Food&#8209;101 Classifier</h1>
+      <p class="tagline">DeepCNN Model w/ 17.3M params. Predicts out of 101 classes (food categories)</p>
+    </div>
+    <span class="topbar-spacer"></span>
+    <button type="button" class="help-btn" id="help-btn"
+            aria-label="About this project" title="About this project">?</button>
+  </header>
+
+  <dialog class="about" id="about" aria-labelledby="about-title">
+    <div class="about-head">
+      <h2 id="about-title">About this project</h2>
+      <button type="button" class="about-close" id="about-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="about-body">
+      <p>This model is a convolutional neural network I trained from scratch to recognize 101 different kinds of food
+         from a photo. No pretrained weights were used, every parameter was learned during the training split.</p>
+
+      <dl class="about-facts">
+        <div><dt>Top-1 accuracy</dt><dd>84.65%</dd></div>
+        <div><dt>Parameters</dt><dd>17.3M</dd></div>
+        <div><dt>Training images</dt><dd>75,750</dd></div>
+      </dl>
+
+      <p>Each photo is shown to the model at three different zoom levels, plus a mirrored copy of each,
+         and the six opinions are averaged. Different crops can get different images wrong, so
+         their mistakes partly cancel out and give us a small ~2.5 point bump in accuracy. <br><br>
+          My model was trained on the Food-101 dataset, which contains 101,000 images pertaining to
+          101 classes. This dataset was published as part of a research paper.
+      </p>
+
+      <div class="about-links">
+        <a href="https://github.com/utsav-nimavat/image-classifier-CNN"
+           target="_blank" rel="noopener noreferrer">View my code on GitHub!</a>
+        <a class="secondary" href="https://data.vision.ee.ethz.ch/cvl/datasets_extra/food-101/"
+           target="_blank" rel="noopener noreferrer">View dataset</a>
+      </div>
+
+      <p class="about-cite">Dataset: Bossard, Guillaumin &amp; Van Gool,
+         &ldquo;Food-101 &ndash; Mining Discriminative Components with Random Forests&rdquo;,
+         ECCV 2014.</p>
+    </div>
+  </dialog>
+
+  <dialog class="about" id="classes" aria-labelledby="classes-title">
+    <div class="about-head">
+      <h2 id="classes-title">What it can recognize</h2>
+      <button type="button" class="about-close" id="classes-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="about-body">
+      <p>These are the 101 categories the model was trained on. Anything outside this list will
+         still get a guess, just a wrong one.</p>
+      <div class="class-list" id="class-list"></div>
+    </div>
+  </dialog>
+
+  <div class="app">
+    <section class="panel" aria-labelledby="cap-title">
+      <div class="panel-head">
+        <h2 class="panel-title" id="cap-title">Your photo</h2>
+        <span class="panel-title" id="filename"></span>
+      </div>
+      <div class="capture-body">
+        <div id="dropzone" class="dropzone" tabindex="0" role="button"
+             aria-label="Drop an image here or click to choose a file">
+          <svg class="dz-art" width="60" height="60" viewBox="0 0 60 60" fill="none" aria-hidden="true">
+            <ellipse cx="30" cy="38" rx="20" ry="7" stroke="currentColor" stroke-width="2"/>
+            <path d="M10 38c0-8 9-13 20-13s20 5 20 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M30 25c0-5 3.6-9 8.4-9 .4 5-3.4 9-8.4 9Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M24 25c-3.6 0-6.4-2.8-6.2-6.4 3.4.2 6.2 3 6.2 6.4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M7 46h46" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".45"/>
+          </svg>
+          <div>
+            <div class="dz-primary">Drop a photo of food</div>
+            <div class="dz-secondary">or click to browse your files</div>
+          </div>
+          <div class="dz-formats">JPG &middot; PNG &middot; HEIC &middot; up to 10 MB</div>
+        </div>
+
+        <div id="preview" class="preview" hidden>
+          <img id="preview-img" alt="Selected food photo">
+          <div class="preview-meta">
+            <span class="chip" id="chip-dims">&mdash;</span>
+            <span class="chip" id="chip-size">&mdash;</span>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn btn-camera" id="btn-camera">
+            <svg width="16" height="16" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+              <path d="M1.5 4.8h2.4l1.1-1.8h4l1.1 1.8h2.4v7.7h-11V4.8Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+              <circle cx="7.5" cy="8.4" r="2.5" stroke="currentColor" stroke-width="1.3"/>
+            </svg>
+            Take photo
+          </button>
+          <button type="button" class="btn btn-primary" id="btn-classify" disabled>Classify</button>
+        </div>
+
+        <input type="file" id="file-input" class="visually-hidden" accept="image/*">
+        <input type="file" id="camera-input" class="visually-hidden" accept="image/*" capture="environment">
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="out-title">
+      <div class="panel-head">
+        <h2 class="panel-title" id="out-title">Best guesses</h2>
+        <button type="button" class="panel-link" id="show-classes">View all potential guesses</button>
+      </div>
+      <div class="readout-body">
+        <dl class="status">
+          <div><dt>TTA Passes</dt><dd id="stat-passes">&mdash;</dd></div>
+          <div><dt>Time</dt><dd id="stat-latency">&mdash;</dd></div>
+          <div><dt>Device</dt><dd id="stat-device">&mdash;</dd></div>
+        </dl>
+
+        <div class="results" id="results" aria-live="polite">
+          <div class="empty">
+            <p>Nothing to taste yet</p>
+            <p class="hint">your top 3 guesses land here</p>
+          </div>
+        </div>
+
+        <details class="settings">
+          <summary>Settings</summary>
+          <div class="settings-body">
+            <div class="field">
+              <div class="field-head">
+                <span class="field-label">Guesses to show</span>
+                <span class="field-value" id="topk-out">3</span>
+              </div>
+              <input type="range" id="topk" min="1" max="5" step="1" value="3"
+                     aria-label="Number of guesses to show">
+              <div class="ticks" aria-hidden="true">
+                <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
+              </div>
+            </div>
+            <label class="toggle">
+              <span class="toggle-copy">
+                <span class="field-label">Fast mode</span>
+                <span class="field-hint">Quicker results at the cost of potential accuracy</span>
+              </span>
+              <input type="checkbox" id="fast">
+              <span class="switch" aria-hidden="true"></span>
+            </label>
+          </div>
+        </details>
+      </div>
+    </section>
+  </div>
+
+  <p class="footnote">Trained from scratch on 75,750 photos of food. <br>
+                        Images sourced from the <a href="https://data.vision.ee.ethz.ch/cvl/datasets_extra/food-101/" target="_blank" rel="noopener noreferrer">Food-101 dataset</a>
+  </p>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var dropzone = $('dropzone'), preview = $('preview'), previewImg = $('preview-img');
+  var fileInput = $('file-input'), camInput = $('camera-input');
+  var results = $('results'), btnGo = $('btn-classify'), btnCam = $('btn-camera');
+  var topk = $('topk'), fast = $('fast');
+
+  // must match the thumbnail cap in predict.py, shrinking further would throw away pixels the server would have kept
+  var MAX_DIM = 1024;
+  var MAX_TOPK = 5;
+  var currentFile = null;
+  var lastData = null;
+
+  /* ---------- shrink before upload ----------
+     a 12MP phone photo is ~4MB, but the server never looks above 288px. */
+  function downscale(file) {
+    return new Promise(function (resolve) {
+      var img = new Image();
+      var url = URL.createObjectURL(file);
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        var scale = Math.min(1, MAX_DIM / Math.max(img.width, img.height));
+        if (scale === 1 && file.size < 1.5 * 1024 * 1024) return resolve(file);
+        var c = document.createElement('canvas');
+        c.width = Math.round(img.width * scale);
+        c.height = Math.round(img.height * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(function (blob) { resolve(blob || file); }, 'image/jpeg', 0.92);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  }
+
+  /* ---------- file selection ---------- */
+  function loadFile(file) {
+    if (!file || !/^image\//.test(file.type)) return;
+    currentFile = file;
+    var url = URL.createObjectURL(file);
+    previewImg.onload = function () {
+      $('chip-dims').textContent = previewImg.naturalWidth + '×' + previewImg.naturalHeight;
+      $('chip-size').textContent = (file.size / 1024 / 1024).toFixed(1) + ' MB';
+      URL.revokeObjectURL(url);
+    };
+    previewImg.src = url;
+    preview.hidden = false;
+    dropzone.hidden = true;
+    $('filename').textContent = file.name ? file.name.slice(0, 26) : 'photo';
+    btnGo.disabled = false;
+  }
+
+  dropzone.addEventListener('click', function () { fileInput.click(); });
+  dropzone.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+  });
+  preview.addEventListener('click', function () { fileInput.click(); });
+  btnCam.addEventListener('click', function () { camInput.click(); });
+  fileInput.addEventListener('change', function (e) { loadFile(e.target.files[0]); });
+  camInput.addEventListener('change', function (e) { loadFile(e.target.files[0]); });
+
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    dropzone.addEventListener(ev, function (e) { e.preventDefault(); dropzone.classList.add('is-over'); });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    dropzone.addEventListener(ev, function (e) { e.preventDefault(); dropzone.classList.remove('is-over'); });
+  });
+  dropzone.addEventListener('drop', function (e) { loadFile(e.dataTransfer.files[0]); });
+  window.addEventListener('dragover', function (e) { e.preventDefault(); });
+  window.addEventListener('drop', function (e) { e.preventDefault(); });
+
+  /* ---------- settings ---------- */
+  topk.addEventListener('input', function () { $('topk-out').textContent = topk.value; });
+  // re-render only when most recent set of data as changed
+  topk.addEventListener('change', function () { if (lastData) render(lastData); });
+  // re-run when fast mode is toggled, so the results always match the settings
+  fast.addEventListener('change', function () { if (currentFile) run(); });
+
+  /* ---------- talk to the api ---------- */
+  async function run() {
+    if (!currentFile) return;
+    btnGo.disabled = true;
+    results.innerHTML = '<div class="loading"><span class="spinner"></span><p>Tasting ' +
+                        (fast.checked ? 2 : 6) + ' ways…</p></div>';
+    try {
+      var blob = await downscale(currentFile);
+      var form = new FormData();
+      form.append('image', blob, currentFile.name || 'photo.jpg');
+      /* we request the max every time and only show the amount the user asks for.
+         this is an optimization so we don't send a request everytime the slider changes, only pull
+         from our cached top 5.
+       */
+      form.append('topk', MAX_TOPK);
+      form.append('fast', fast.checked ? 'true' : 'false');
+
+      var res = await fetch('/api/classify', { method: 'POST', body: form });
+      if (!res.ok) {
+        var msg = 'Something went wrong (' + res.status + ').';
+        try { var j = await res.json(); if (j.detail) msg = j.detail; } catch (e) {}
+        throw new Error(msg);
+      }
+      lastData = (await res.json());
+      render(lastData);
+    } catch (err) {
+      results.innerHTML = '<div class="error"><p>' + err.message + '</p></div>';
+      $('stat-passes').textContent = $('stat-latency').textContent = '—';
+    } finally {
+      btnGo.disabled = false;
+    }
+  }
+
+  function render(data) {
+    $('stat-passes').textContent = data.passes;
+    $('stat-latency').textContent = data.elapsed_ms + ' ms';
+    $('stat-device').textContent = data.device;
+
+    // amount of predictions is a slice from 0 to selected topk
+    var preds = data.predictions.slice(0, +topk.value);
+    // bars show absolute confidence. 54% fills 54% of the track, not all of it.
+    // an unsure prediction should look unsure. the floor keeps a non-zero
+    // probability from rendering as literally nothing.
+    results.innerHTML = preds.map(function (p, i) {
+      return '<div class="row row-' + (i + 1) + '">' +
+               '<span class="rank">' + (i + 1) + '</span>' +
+               '<span class="row-main">' +
+                 '<span class="label">' + p.label.replace(/_/g, ' ') + '</span>' +
+                 '<span class="track"><span class="bar" data-w="' +
+                   Math.max(0.8, p.confidence * 100).toFixed(1) + '"></span></span>' +
+               '</span>' +
+               '<span class="pct">' + (p.confidence * 100).toFixed(1) + '%</span>' +
+             '</div>';
+    }).join('');
+
+    // force a reflow so the browser commits width:0 before we set the target.
+    // don't use requestAnimationFrame: it never fires in a backgrounded tab,
+    // which would leave every bar stuck at zero width.
+    results.querySelectorAll('.bar').forEach(function (b) {
+      void b.offsetWidth;
+      b.style.width = b.dataset.w + '%';
+    });
+  }
+
+  /* ---------- about dialog ----------
+     <dialog> + showModal() gives focus trapping, Escape-to-close and the
+     ::backdrop for free, no library, no scroll-lock hack. */
+  var about = $('about');
+  $('help-btn').addEventListener('click', function () { about.showModal(); });
+  $('about-close').addEventListener('click', function () { about.close(); });
+  // clicking the backdrop: the click lands on <dialog> itself, never on its children
+  about.addEventListener('click', function (e) { if (e.target === about) about.close(); });
+  // belt and braces: <dialog> normally closes itself on Escape, but that relies on
+  // the browser's close-watcher, which some embedded webviews don't wire up. this is
+  // a no-op wherever the native behavior already works.
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (about.open) about.close();
+    if (classesDlg.open) classesDlg.close();
+  }, true);
+  // send focus back to the button that opened it, so keyboard users don't land at
+  // the top of the document
+  about.addEventListener('close', function () { $('help-btn').focus(); });
+
+  /* the class list gets its own dialog. fetched the first time it's opened,
+     then cached. no point pulling 101 names for someone who never asks. */
+  var classesDlg = $('classes'), classList = $('class-list'), classesLoaded = false;
+
+  $('show-classes').addEventListener('click', async function () {
+    classesDlg.showModal();
+    if (classesLoaded) return;
+    classList.innerHTML = '<span class="muted">Loading…</span>';
+    try {
+      var r = await fetch('/api/classes');
+      if (!r.ok) throw new Error();
+      var d = await r.json();
+      classList.innerHTML = d.classes
+        .map(function (c) { return '<span>' + c.replace(/_/g, ' ') + '</span>'; })
+        .join('');
+      classesLoaded = true;
+    } catch (e) {
+      classList.innerHTML = '<span class="muted">Could not load the list.</span>';
+    }
+  });
+  $('classes-close').addEventListener('click', function () { classesDlg.close(); });
+  classesDlg.addEventListener('click', function (e) { if (e.target === classesDlg) classesDlg.close(); });
+  classesDlg.addEventListener('close', function () { $('show-classes').focus(); });
+
+  btnGo.addEventListener('click', run);
+
+  fetch('/api/health').then(function (r) { return r.json(); }).then(function (h) {
+    if (h.device) $('stat-device').textContent = h.device;
+  }).catch(function () {});
+})();
+</script>
 </body>
 </html>

@@ -68,15 +68,18 @@ conda activate image_cnn
 
 
 Download pretrained model (make sure you're **inside** the repo):
-```python
-gh release download v1.0 --pattern deepcnn_food101.pt
+```bash
+gh release download v1.1 --pattern deepcnn_food101.onnx
 ```
 
 OR, to train from scratch:
 ```python
-python train.py --num-workers 8 --out-dir ~/Documents/ml-runs/food101
+python train.py --num-workers 8
+python export_onnx.py
 ```
-This will take an estimated ~2.5 hours to run on an RTX GPU (mine was a 3060ti). If it's your first time training the model, it will need to download the dataset (5gb), create a scaled version of the dataset, and then begin training. **Don't pick this approach unless you really want obtain the model weights from scratch!**
+This will save `deepcnn_food101.pt` in your repo and then convert it to `deepcnn_food101.onnx`.  
+
+Doing so will take an estimated ~2.5 hours to run on an RTX GPU (mine was a 3060ti). If it's your first time training the model, it will need to download the dataset (5gb), create a scaled version of the dataset, and then begin training. **Don't pick this approach unless you really want to make the model weights from scratch!**
 
 
 
@@ -94,7 +97,7 @@ This would yield a sample output like:
   spaghetti_bolognese        0.7%
 ```
 Additional params:
-- `-m <path to model>`: Set to scan your repo by default for `.pt` file
+- `-m <path to model>`: Set to scan your repo by default for `.onnx` file
 - `-c <path to classes.json>`: Scans repo for `classes.json` by default.
 - `-t <amount of predictions>`: Set to 3 by default, change to list more or less
 - `-f (boolean flag)`: Sets program to "fast" mode, only performing one round of TTA instead of the three used. `False` by omission
