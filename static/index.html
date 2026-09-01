@@ -533,7 +533,7 @@
             <div class="dz-primary">Drop a photo of food</div>
             <div class="dz-secondary">or click to browse your files</div>
           </div>
-          <div class="dz-formats">JPG &middot; PNG &middot; HEIC &middot; up to 10 MB</div>
+          <div class="dz-formats">JPG &middot; PNG &middot; HEIC</div>
         </div>
 
         <div id="preview" class="preview" hidden>
@@ -622,6 +622,9 @@
 
   // must match the thumbnail cap in predict.py, shrinking further would throw away pixels the server would have kept
   var MAX_DIM = 1024;
+  // must match MAX_UPLOAD_BYTES in app.py. the resize below means a real upload
+  // is well under this so it's a backstop for anything canvas can't re-encode
+  var MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
   var MAX_TOPK = 5;
   var currentFile = null;
   var lastData = null;
@@ -698,6 +701,10 @@
                         (fast.checked ? 2 : 6) + ' ways…</p></div>';
     try {
       var blob = await downscale(currentFile);
+      // our own message, rather than the platform's opaque rejection
+      if (blob.size > MAX_UPLOAD_BYTES) {
+        throw new Error('That photo is too large to send. Try a smaller one.');
+      }
       var form = new FormData();
       form.append('image', blob, currentFile.name || 'photo.jpg');
       /* we request the max every time and only show the amount the user asks for.

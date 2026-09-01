@@ -14,9 +14,12 @@ from starlette.concurrency import run_in_threadpool
 
 from predict import FoodClassifier, open_image
 
-# a phone photo is ~4mb, so 10 is generous. this is a guard against someone
-# uploading a 2gb file and eating all our memory, not a real user limit
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+# Vercel rejects request bodies over 4.5MB at the edge, but that's before this function is
+# invoked. anything bigger never reaches the check below and the caller gets an
+# opaque FUNCTION_PAYLOAD_TOO_LARGE instead. 4MB keeps our own clearer error the
+# one people see in the band where we can still catch it.
+# Mirrored in static/index.html (MAX_UPLOAD_BYTES). keep the two in sync!
+MAX_UPLOAD_BYTES = 4 * 1024 * 1024
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -118,4 +121,10 @@ async def health(request: Request):
 
 # mounting at "/" catches every path that didn't match a route above, so this
 # MUST come last. html=True makes "/" serve static/index.html.
-app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+#
+# guarded because StaticFiles raises at IMPORT time if the directory is missing.
+# locally static/ is right here and this serves the page. on vercel the CDN
+# serves the page and this function only ever sees /api/*, so the directory may
+# not be in the bundle -- without the guard the whole function would fail to boot.
+if STATIC_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
