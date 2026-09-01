@@ -3,7 +3,7 @@
 Same CLI and same numbers as predict.py, but the whole inference path is
 onnxruntime + PIL + numpy (~80MB of deps instead of ~540MB).
 """
-import argparse, io, json, threading
+import argparse, io, json, threading, urllib.request
 import numpy as np
 import onnxruntime as ort
 from pathlib import Path
@@ -70,6 +70,21 @@ def _softmax(x, axis=-1):
     """reimplements torch's softmax() function. turns model's raw scores into probabilities."""
     e = np.exp(x - x.max(axis=axis, keepdims=True))
     return e / e.sum(axis=axis, keepdims=True)
+
+
+MAX_FETCH_BYTES = 20 * 1024 * 1024      # don't pull an unbounded file over the web
+
+
+def read_source(path):
+    """CLI only: accept a https URL as well as a local path."""
+    if not path.startswith(("http://", "https://")):
+        return path
+    req = urllib.request.Request(path, headers={"User-Agent": "deepcnn-food101/1.0"})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        data = r.read(MAX_FETCH_BYTES + 1)
+    if len(data) > MAX_FETCH_BYTES:
+        raise ValueError(f"image is larger than {MAX_FETCH_BYTES // 1024 // 1024} MB")
+    return data
 
 
 def open_image(source):
@@ -139,8 +154,16 @@ def main():
     args = parse_args()
     clf = FoodClassifier(args.model, args.classes)
     for path in args.images:
-        print(f"\n{Path(path).name}")
-        predictions = clf.classify(open_image(path), topk=args.topk, fast=args.fast)
+        # a URL has no useful Path().name, so fall back to its last segment
+        label = (path.rstrip("/").split("/")[-1][:40]
+                 if path.startswith(("http://", "https://")) else Path(path).name)
+        print(f"\n{label}")
+        try:
+            img = open_image(read_source(path))
+        except Exception as e:
+            print(f"  could not read this image: {e}")
+            continue
+        predictions = clf.classify(img, topk=args.topk, fast=args.fast)
         for name, conf in predictions:
             print(f"  {name:<24} {conf:6.1%}")
 

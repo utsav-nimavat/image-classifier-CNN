@@ -35,8 +35,8 @@ def parse_args():
     p.add_argument("--ckpt", required=True,
                    help="Checkpoint to evaluate.")
     p.add_argument("--data", default=str(Path.home() / "Documents" / "food-101" / "images"),
-                   help="Image root. Use the ORIGINAL food-101 (short side up to 512), "
-                        "NOT food-101-256 -- the larger scales need real resolution to "
+                   help="Image root. Use the original food-101 (short side up to 512), "
+                        "not food-101-256. the larger scales need real resolution to "
                         "crop from, or they just upsample a 256px image.")
     p.add_argument("--scales", default="256/224,288/256,320/288",
                    help="Comma-separated resize/crop pairs to average over. Each is "
@@ -62,45 +62,42 @@ def load_test_split(dataset, images_path):
         return np.array([lookup[ln.strip()] for ln in f if ln.strip()], dtype=np.int32)
 
 
-def main():
-    args = parse_args()
-
-    # Pick the best available backend: Apple Silicon, then NVIDIA, then CPU.
+def choose_device():
+    """Pick the best available backend: Apple Silicon, then NVIDIA, then CPU."""
     if torch.backends.mps.is_available():
-        device = torch.device("mps")
-    elif torch.cuda.is_available():
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
+        return torch.device("mps")
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    return torch.device("cpu")
 
-    chlast  = (device.type == "cuda")   # channels_last only pays off on CUDA
-    use_amp = (device.type == "cuda")   # bfloat16 autocast is CUDA-only here
-    if device.type == "cuda":
-        torch.backends.cudnn.benchmark = True
-    print("device:", device)
 
-    # Built once: the transform changes per scale below, but the file list and
-    # the test indices don't depend on it.
-    ds = CompactImageFolder(args.data, None, cache_dir=args.cache_dir)
-    te_idx = load_test_split(ds, args.data)
-    print(f"test images: {len(te_idx):,}")
-
-    scales = [tuple(int(v) for v in s.split("/")) for s in args.scales.split(",")]
-
-    model = DeepCNN(len(ds.classes)).to(device)
+def load_model(ckpt, num_classes, device, chlast=False):
+    model = DeepCNN(num_classes).to(device)
     if chlast:
         model = model.to(memory_format=torch.channels_last)
-    model.load_state_dict(torch.load(args.ckpt, map_location=device, weights_only=True))
+    model.load_state_dict(torch.load(ckpt, map_location=device, weights_only=True))
     model.eval()
+    return model
+
+
+def evaluate(model, ds, te_idx, scales, device, num_workers=0, verbose=True):
+    """Run flip+multi-scale TTA over te_idx and return the raw results.
+
+    Returns (probs, labels):
+      probs  : (N, num_classes) averaged probabilities, one row per test image
+      labels : (N,) ground-truth class indices
+    """
+    chlast  = (device.type == "cuda")   # channels_last only pays off on CUDA
+    use_amp = (device.type == "cuda")   # bfloat16 autocast is CUDA-only here
 
     summed, labels = None, None
     for resize, crop in scales:
         ds.transform = transforms.Compose([transforms.Resize(resize),
-                                        transforms.CenterCrop(crop),
-                                        transforms.ToTensor(),
-                                        transforms.Normalize(MEAN, STD)])
+                                           transforms.CenterCrop(crop),
+                                           transforms.ToTensor(),
+                                           transforms.Normalize(MEAN, STD)])
         loader = DataLoader(Subset(ds, te_idx), batch_size=128, shuffle=False,
-                            num_workers=args.num_workers,
+                            num_workers=num_workers,
                             pin_memory=(device.type == "cuda"))
 
         probs, ys = [], []
@@ -111,15 +108,35 @@ def main():
                     x = x.to(memory_format=torch.channels_last)
                 p1 = model(x).float().softmax(1)                        # original view
                 p2 = model(torch.flip(x, dims=[3])).float().softmax(1)  # mirrored view
-                probs.append(((p1 + p2) / 2).cpu())                     # average PROBABILITIES
+                probs.append(((p1 + p2) / 2).cpu())                     # average probabilities
                 ys.append(y)
 
         probs, labels = torch.cat(probs), torch.cat(ys)
-        acc = 100 * (probs.argmax(1) == labels).float().mean().item()
-        print(f"  {resize}/{crop:<4} + flip : {acc:.2f}%")
+        if verbose:
+            acc = 100 * (probs.argmax(1) == labels).float().mean().item()
+            print(f"  {resize}/{crop:<4} + flip : {acc:.2f}%")
         summed = probs if summed is None else summed + probs
 
-    combined = 100 * ((summed / len(scales)).argmax(1) == labels).float().mean().item()
+    return summed / len(scales), labels
+
+
+def main():
+    args = parse_args()
+    device = choose_device()
+    if device.type == "cuda":
+        torch.backends.cudnn.benchmark = True
+    print("device:", device)
+
+    ds = CompactImageFolder(args.data, None, cache_dir=args.cache_dir)
+    te_idx = load_test_split(ds, args.data)
+    print(f"test images: {len(te_idx):,}")
+
+    scales = [tuple(int(v) for v in s.split("/")) for s in args.scales.split(",")]
+    model = load_model(args.ckpt, len(ds.classes), device, chlast=(device.type == "cuda"))
+
+    probs, labels = evaluate(model, ds, te_idx, scales, device,
+                             num_workers=args.num_workers)
+    combined = 100 * (probs.argmax(1) == labels).float().mean().item()
     print(f"\n  all {len(scales)} scales + flip : {combined:.2f}%")
 
 
