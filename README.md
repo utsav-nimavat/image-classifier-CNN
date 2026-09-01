@@ -7,7 +7,7 @@ I started by attempting to build a general image classifier with 1000 classes ba
 
 ## Overview
 
-I trained a convolutional neural network over the [Food-101 dataset](https://data.vision.ee.ethz.ch/cvl/datasets_extra/food-101/) (more details about the data inside `explore.ipynb`) which includes 101 food categories with a total of 101,000 labeled images. The end result is a model that can roughly classify a dish simply by looking at a photo.
+I trained a convolutional neural network over the [Food-101 dataset](https://data.vision.ee.ethz.ch/cvl/datasets_extra/food-101/) (more details about the data inside `training/explore.ipynb`) which includes 101 food categories with a total of 101,000 labeled images. The end result is a model that can roughly classify a dish simply by looking at a photo.
 
 Next, I made a web interface for interacting with the model, and hosted it with vercel. All model computation is done in the cloud, and predictions come back in ~500ms. Try it out!
 ## Model architecture
@@ -73,8 +73,8 @@ gh release download v1.1 --pattern deepcnn_food101.onnx
 
 OR, to train from scratch:
 ```python
-python train.py --num-workers 8
-python export_onnx.py
+python training/train.py --num-workers 8
+python training/export_onnx.py
 ```
 This will save `deepcnn_food101.pt` in your repo and then convert it to `deepcnn_food101.onnx`.  
 

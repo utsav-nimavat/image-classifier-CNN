@@ -319,7 +319,7 @@ def main():
     # those same indices point at different images -- training data leaks into
     # the val set silently, with no error, and old checkpoints become invalid.
     # Fail loudly instead.
-    classes_json = os.path.join(os.path.dirname(os.path.abspath(__file__)), "classes.json")
+    classes_json = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../classes.json")
     if NUM_CLASSES is None and os.path.exists(classes_json):
         with open(classes_json) as f:
             expected = json.load(f)
