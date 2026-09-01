@@ -1,5 +1,5 @@
 # Image Classification Project using a Convolutional Neural Network - Classifying Food
-
+### Model is live at [image-cnn.vercel.app](image-cnn.vercel.app)! Check it out.
 ## Background 
 This is a personal project to explore pytorch and build off what I've learned in undergrad. I got faint exposure to basic neural networks in a couple of my classes, and decided to see how far I could go using a field that always interested me - computer vision.
 
@@ -9,8 +9,7 @@ I started by attempting to build a general image classifier with 1000 classes ba
 
 I trained a convolutional neural network over the [Food-101 dataset](https://data.vision.ee.ethz.ch/cvl/datasets_extra/food-101/) (more details about the data inside `explore.ipynb`) which includes 101 food categories with a total of 101,000 labeled images. The end result is a model that can roughly classify a dish simply by looking at a photo.
 
-The next phase of this project is to build a website where users can upload their own images for classification - WIP
-
+Next, I made a web interface for interacting with the model, and hosted it with vercel. All model computation is done in the cloud, and predictions come back in ~500ms. Try it out!
 ## Model architecture
 
 ### Summary 
